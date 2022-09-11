@@ -1,8 +1,7 @@
 LDLIBS=-lpcap
 CXXFLAGS=-g
 
-all: send-arp-test
-
+all: arp-spoof
 
 main.o: mac.h ip.h ethhdr.h arphdr.h main.h main.cpp
 
@@ -14,8 +13,8 @@ ip.o: ip.h ip.cpp
 
 mac.o : mac.h mac.cpp
 
-send-arp-test: main.o arphdr.o ethhdr.o ip.o mac.o
+arp-spoof: main.o arphdr.o ethhdr.o ip.o mac.o
 	$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@
 
 clean:
-	rm -f send-arp-test *.o
+	rm -f arp-spoof *.o

