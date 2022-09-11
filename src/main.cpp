@@ -123,9 +123,9 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
   
   Ip target_ip = Ip(_target_ip);
   Ip sender_ip = Ip(_sender_ip);
-
+  cout << "target: " << string(target_ip) << " sender: " << string(sender_ip) << '\n';
   Mac sender_mac = get_mac_by_ip(handle, current_mac, current_ip, sender_ip);
-  
+  cout << "sender mac: " << string(sender_mac) << '\n';
   send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
   
   pcap_close(handle);
@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) {
 	char* dev = argv[1];
   printf("%d\n", argc);
   for (int i = 2; i < argc; i += 2) {
-    attack(dev, argv[i], argv[i + 1]);
+    attack(dev, argv[i + 1], argv[i]);
   }
 
   return 1;
